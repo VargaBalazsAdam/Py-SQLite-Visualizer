@@ -1,8 +1,9 @@
 import sys
 import sqlite3
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QFileDialog, QPushButton, QLineEdit, \
-    QTableWidget, QTableWidgetItem, QHBoxLayout, QHeaderView, QMenu
-from PyQt5.QtCore import Qt  # Add this import
+    QTableWidget, QTableWidgetItem, QHBoxLayout, QHeaderView, QMenu, QTextEdit, QLabel, QMessageBox, QInputDialog
+from PyQt5.QtCore import Qt
+
 class SQLiteVisualizer(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -26,27 +27,27 @@ class SQLiteVisualizer(QMainWindow):
 
         # Second row for table operations and table view
         self.table_operations_layout = QHBoxLayout()
-        
+
         # Table selector (thinner)
         self.table_selector = QTableWidget()
         self.table_selector.setColumnCount(1)
         self.table_selector.setHorizontalHeaderLabels([""])
         self.table_selector.itemClicked.connect(self.load_table_data)
         self.table_selector.setMaximumWidth(200)  # Set a maximum width to make it thinner
-        
+
         # Set the horizontal size policy to expanding
         table_selector_header = self.table_selector.horizontalHeader()
         table_selector_header.setSectionResizeMode(QHeaderView.Stretch)
-        
+
         # Create context menu for right-click actions
         self.table_selector.setContextMenuPolicy(Qt.CustomContextMenu)
         self.table_selector.customContextMenuRequested.connect(self.show_context_menu)
-        
+
         # Table view
         self.table_view = QTableWidget()
         self.table_view.setEditTriggers(QTableWidget.DoubleClicked)
         self.table_view.cellChanged.connect(self.update_data)
-        
+
         self.table_operations_layout.addWidget(self.table_selector)
         self.table_operations_layout.addWidget(self.table_view)
         self.layout.addLayout(self.table_operations_layout)
@@ -55,6 +56,32 @@ class SQLiteVisualizer(QMainWindow):
         self.context_menu = QMenu(self)
         self.delete_table_action = self.context_menu.addAction("Delete Table")
         self.delete_table_action.triggered.connect(self.delete_table)
+
+        # Create table button and editor
+        self.create_table_button = QPushButton("Create Table")
+        self.create_table_button.clicked.connect(self.show_table_creator)
+        self.layout.addWidget(self.create_table_button)
+
+        # Create table creator widgets (initially hidden)
+        self.table_creator_layout = QVBoxLayout()
+        self.table_creator_layout.setSpacing(10)
+        self.table_name_input = QLineEdit()
+        self.table_sql_input = QTextEdit()
+        self.table_create_button = QPushButton("Create")
+        self.table_create_button.clicked.connect(self.create_table)
+        self.table_cancel_button = QPushButton("Cancel")
+        self.table_cancel_button.clicked.connect(self.cancel_table_creation)
+        self.table_creator_layout.addWidget(QLabel("Table Name:"))
+        self.table_creator_layout.addWidget(self.table_name_input)
+        self.table_creator_layout.addWidget(QLabel("Table SQL:"))
+        self.table_creator_layout.addWidget(self.table_sql_input)
+        self.table_creator_layout.addWidget(self.table_create_button)
+        self.table_creator_layout.addWidget(self.table_cancel_button)
+        self.layout.addLayout(self.table_creator_layout)
+        self.hide_table_creator()
+
+        # Flag to track whether in table viewing or creating mode
+        self.viewing_mode = True
 
     def select_db_file(self):
         options = QFileDialog.Options()
@@ -106,6 +133,82 @@ class SQLiteVisualizer(QMainWindow):
                 self.cursor.execute(f"DROP TABLE {table_name};")
                 self.connection.commit()
                 self.load_table_list()
+
+    def show_table_creator(self):
+        if self.viewing_mode:
+            self.hide_table_viewer_widgets()
+            self.show_table_creator_widgets()
+            self.viewing_mode = False
+
+    def hide_table_creator(self):
+        self.table_name_input.clear()
+        self.table_sql_input.clear()
+        for i in reversed(range(self.table_creator_layout.count())):
+            widget = self.table_creator_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.hide()  # Hide individual widgets
+
+    def show_table_creator_widgets(self):
+        self.table_name_input.clear()
+        self.table_sql_input.clear()
+        for i in range(self.table_creator_layout.count()):
+            widget = self.table_creator_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.show()  # Show individual widgets
+
+    def hide_table_viewer_widgets(self):
+        self.table_selector.hide()
+        self.table_view.hide()
+        self.create_table_button.hide()
+
+    def show_table_viewer_widgets(self):
+        self.table_selector.show()
+        self.table_view.show()
+        self.create_table_button.show()
+
+    def create_table(self):
+        table_name = self.table_name_input.text()
+        table_sql = self.table_sql_input.toPlainText()
+
+        if table_name and table_sql:
+            try:
+                self.cursor.execute(table_sql)
+                self.connection.commit()
+                self.load_table_list()
+                self.hide_table_creator()
+                self.show_table_viewer_widgets()
+                self.viewing_mode = True
+            except Exception as e:
+                QMessageBox.critical(self, "Error Creating Table", str(e))
+        else:
+            QMessageBox.warning(self, "Missing Information", "Please enter both a table name and SQL.")
+
+    def cancel_table_creation(self):
+        self.hide_table_creator()
+        self.show_table_viewer_widgets()
+        self.viewing_mode = True
+
+    def add_row(self):
+        self.table_view.insertRow(self.table_view.rowCount())
+
+    def delete_row(self):
+        current_row = self.table_view.currentRow()
+        if current_row >= 0:
+            self.table_view.removeRow(current_row)
+
+    def change_column_name(self):
+        current_column = self.table_view.currentColumn()
+        if current_column >= 0:
+            new_name, ok = QInputDialog.getText(self, "Change Column Name", "New Column Name:")
+            if ok and new_name:
+                self.table_view.horizontalHeaderItem(current_column).setText(new_name)
+
+    def change_column_type(self):
+        current_column = self.table_view.currentColumn()
+        if current_column >= 0:
+            new_type, ok = QInputDialog.getText(self, "Change Column Type", "New Column Type:")
+            if ok and new_type:
+                self.table_view.horizontalHeaderItem(current_column).setText(new_type)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
