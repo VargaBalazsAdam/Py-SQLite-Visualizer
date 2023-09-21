@@ -22,8 +22,11 @@ class SQLiteVisualizer(QMainWindow):
         self.file_path_input = QLineEdit()
         self.file_selector_button = QPushButton("Select .db File")
         self.file_selector_button.clicked.connect(self.select_db_file)
+        self.create_empty_db_button = QPushButton("Create Empty Database")
+        self.create_empty_db_button.clicked.connect(self.create_empty_db)
         self.file_selector_layout.addWidget(self.file_path_input)
         self.file_selector_layout.addWidget(self.file_selector_button)
+        self.file_selector_layout.addWidget(self.create_empty_db_button)
         self.layout.addLayout(self.file_selector_layout)
 
         # Second row for table operations and table view
@@ -34,7 +37,7 @@ class SQLiteVisualizer(QMainWindow):
         self.table_selector.setColumnCount(1)
         self.table_selector.setHorizontalHeaderLabels([""])
         self.table_selector.itemClicked.connect(self.load_table_data)
-        self.table_selector.setMaximumWidth(200)  # Set a maximum width to make it thinner
+        self.table_selector.setMaximumWidth(200)
 
         # Set the horizontal size policy to expanding
         table_selector_header = self.table_selector.horizontalHeader()
@@ -159,14 +162,14 @@ class SQLiteVisualizer(QMainWindow):
         for i in reversed(range(self.table_creator_layout.count())):
             widget = self.table_creator_layout.itemAt(i).widget()
             if widget is not None:
-                widget.hide()  # Hide individual widgets
+                widget.hide()
 
     def show_table_creator_widgets(self):
         self.table_sql_input.clear()
         for i in range(self.table_creator_layout.count()):
             widget = self.table_creator_layout.itemAt(i).widget()
             if widget is not None:
-                widget.show()  # Show individual widgets
+                widget.show()
 
     def hide_table_viewer_widgets(self):
         self.table_selector.hide()
@@ -205,7 +208,7 @@ class SQLiteVisualizer(QMainWindow):
             try:
                 self.cursor.execute(f"INSERT INTO {table_name} DEFAULT VALUES;")
                 self.connection.commit()
-                self.load_table_data(self.table_selector.currentItem())  # Reload data to update the view
+                self.load_table_data(self.table_selector.currentItem())
             except Exception as e:
                 QMessageBox.critical(self, "Error Creating New Row", str(e))
 
@@ -251,6 +254,22 @@ class SQLiteVisualizer(QMainWindow):
         else:
             # Right-clicked on empty space, create a new row
             self.create_new_row()
+    
+    def create_empty_db(self):
+        options = QFileDialog.Options()
+        file_path, _ = QFileDialog.getSaveFileName(self, "Create Empty Database", "", "SQLite Database Files (*.db);;All Files (*)", options=options)
+        if file_path:
+            try:
+                connection = sqlite3.connect(file_path)
+                connection.close()
+                self.file_path_input.setText(file_path)
+                self.connection = sqlite3.connect(file_path)
+                self.cursor = self.connection.cursor()
+                self.load_table_list()
+                QMessageBox.information(self, "Empty Database Created", f"An empty database has been created and loaded at:\n{file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error Creating Database", str(e))
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = SQLiteVisualizer()
