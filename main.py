@@ -1,8 +1,8 @@
 import sys
 import sqlite3
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QFileDialog, QPushButton, QLineEdit, \
-    QTableWidget, QTableWidgetItem, QHBoxLayout, QHeaderView
-
+    QTableWidget, QTableWidgetItem, QHBoxLayout, QHeaderView, QMenu
+from PyQt5.QtCore import Qt  # Add this import
 class SQLiteVisualizer(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -38,6 +38,10 @@ class SQLiteVisualizer(QMainWindow):
         table_selector_header = self.table_selector.horizontalHeader()
         table_selector_header.setSectionResizeMode(QHeaderView.Stretch)
         
+        # Create context menu for right-click actions
+        self.table_selector.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table_selector.customContextMenuRequested.connect(self.show_context_menu)
+        
         # Table view
         self.table_view = QTableWidget()
         self.table_view.setEditTriggers(QTableWidget.DoubleClicked)
@@ -46,6 +50,11 @@ class SQLiteVisualizer(QMainWindow):
         self.table_operations_layout.addWidget(self.table_selector)
         self.table_operations_layout.addWidget(self.table_view)
         self.layout.addLayout(self.table_operations_layout)
+
+        # Context menu
+        self.context_menu = QMenu(self)
+        self.delete_table_action = self.context_menu.addAction("Delete Table")
+        self.delete_table_action.triggered.connect(self.delete_table)
 
     def select_db_file(self):
         options = QFileDialog.Options()
@@ -84,6 +93,19 @@ class SQLiteVisualizer(QMainWindow):
         new_value = self.table_view.item(row, column).text()
         self.cursor.execute(f"UPDATE {table_name} SET {column_name}=? WHERE rowid=?", (new_value, row + 1))
         self.connection.commit()
+
+    def show_context_menu(self, position):
+        if self.table_selector.itemAt(position):
+            self.context_menu.exec_(self.table_selector.mapToGlobal(position))
+
+    def delete_table(self):
+        if self.table_selector.currentItem():
+            table_name = self.table_selector.currentItem().text()
+            confirm = QMessageBox.question(self, "Delete Table", f"Are you sure you want to delete table '{table_name}'?", QMessageBox.Yes | QMessageBox.No)
+            if confirm == QMessageBox.Yes:
+                self.cursor.execute(f"DROP TABLE {table_name};")
+                self.connection.commit()
+                self.load_table_list()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
