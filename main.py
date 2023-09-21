@@ -1,7 +1,7 @@
 import sys
 import sqlite3
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QFileDialog, QPushButton, QLineEdit, \
-    QTableWidget, QTableWidgetItem, QHBoxLayout
+    QTableWidget, QTableWidgetItem, QHBoxLayout, QHeaderView
 
 class SQLiteVisualizer(QMainWindow):
     def __init__(self):
@@ -33,6 +33,10 @@ class SQLiteVisualizer(QMainWindow):
         self.table_selector.setHorizontalHeaderLabels([""])
         self.table_selector.itemClicked.connect(self.load_table_data)
         self.table_selector.setMaximumWidth(200)  # Set a maximum width to make it thinner
+        
+        # Set the horizontal size policy to expanding
+        table_selector_header = self.table_selector.horizontalHeader()
+        table_selector_header.setSectionResizeMode(QHeaderView.Stretch)
         
         # Table view
         self.table_view = QTableWidget()
