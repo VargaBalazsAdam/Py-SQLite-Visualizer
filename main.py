@@ -66,14 +66,11 @@ class SQLiteVisualizer(QMainWindow):
         # Create table creator widgets (initially hidden)
         self.table_creator_layout = QVBoxLayout()
         self.table_creator_layout.setSpacing(10)
-        self.table_name_input = QLineEdit()
         self.table_sql_input = QTextEdit()
         self.table_create_button = QPushButton("Create")
         self.table_create_button.clicked.connect(self.create_table)
         self.table_cancel_button = QPushButton("Cancel")
         self.table_cancel_button.clicked.connect(self.cancel_table_creation)
-        self.table_creator_layout.addWidget(QLabel("Table Name:"))
-        self.table_creator_layout.addWidget(self.table_name_input)
         self.table_creator_layout.addWidget(QLabel("Table SQL:"))
         self.table_creator_layout.addWidget(self.table_sql_input)
         self.table_creator_layout.addWidget(self.table_create_button)
@@ -158,7 +155,6 @@ class SQLiteVisualizer(QMainWindow):
             self.viewing_mode = False
 
     def hide_table_creator(self):
-        self.table_name_input.clear()
         self.table_sql_input.clear()
         for i in reversed(range(self.table_creator_layout.count())):
             widget = self.table_creator_layout.itemAt(i).widget()
@@ -166,7 +162,6 @@ class SQLiteVisualizer(QMainWindow):
                 widget.hide()  # Hide individual widgets
 
     def show_table_creator_widgets(self):
-        self.table_name_input.clear()
         self.table_sql_input.clear()
         for i in range(self.table_creator_layout.count()):
             widget = self.table_creator_layout.itemAt(i).widget()
@@ -184,10 +179,9 @@ class SQLiteVisualizer(QMainWindow):
         self.create_table_button.show()
 
     def create_table(self):
-        table_name = self.table_name_input.text()
         table_sql = self.table_sql_input.toPlainText()
 
-        if table_name and table_sql:
+        if table_sql:
             try:
                 self.cursor.execute(table_sql)
                 self.connection.commit()
@@ -198,7 +192,7 @@ class SQLiteVisualizer(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error Creating Table", str(e))
         else:
-            QMessageBox.warning(self, "Missing Information", "Please enter both a table name and SQL.")
+            QMessageBox.warning(self, "Missing Information", "Please enter SQL.")
 
     def cancel_table_creation(self):
         self.hide_table_creator()
