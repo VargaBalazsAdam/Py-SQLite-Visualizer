@@ -1,7 +1,8 @@
 import sys
 import sqlite3
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QFileDialog, QPushButton, QLineEdit, \
-    QTableWidget, QTableWidgetItem, QHBoxLayout, QHeaderView, QMenu, QTextEdit, QLabel, QMessageBox, QInputDialog
+    QTableWidget, QTableWidgetItem, QHBoxLayout, QHeaderView, QMenu, QTextEdit, QLabel, QMessageBox, QInputDialog, \
+    QAction
 from PyQt5.QtCore import Qt
 
 class SQLiteVisualizer(QMainWindow):
@@ -80,6 +81,16 @@ class SQLiteVisualizer(QMainWindow):
         self.layout.addLayout(self.table_creator_layout)
         self.hide_table_creator()
 
+        # Connect the customContextMenuRequested signal to show_row_context_menu
+        self.table_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table_view.customContextMenuRequested.connect(self.show_row_context_menu)
+
+        # Create "Save Changes" action and connect to Ctrl+S shortcut
+        self.save_changes_action = QAction("Save Changes", self)
+        self.save_changes_action.setShortcut("Ctrl+S")
+        self.save_changes_action.triggered.connect(self.save_changes)
+        self.addAction(self.save_changes_action)
+
         # Flag to track whether in table viewing or creating mode
         self.viewing_mode = True
 
@@ -115,11 +126,17 @@ class SQLiteVisualizer(QMainWindow):
                 self.table_view.setItem(i, j, QTableWidgetItem(str(cell)))
 
     def update_data(self, row, column):
-        table_name = self.table_selector.item(self.table_selector.currentRow(), 0).text()
-        column_name = self.table_view.horizontalHeaderItem(column).text()
-        new_value = self.table_view.item(row, column).text()
-        self.cursor.execute(f"UPDATE {table_name} SET {column_name}=? WHERE rowid=?", (new_value, row + 1))
-        self.connection.commit()
+        table_name = self.get_selected_table_name()
+        if table_name:
+            column_name = self.table_view.horizontalHeaderItem(column).text()
+            new_value = self.table_view.item(row, column).text()
+            rowid = row + 1
+            try:
+                self.cursor.execute(f"UPDATE {table_name} SET {column_name}=? WHERE rowid=?", (new_value, rowid))
+                self.connection.commit()
+            except Exception as e:
+                QMessageBox.critical(self, "Error Updating Data", str(e))
+
 
     def show_context_menu(self, position):
         if self.table_selector.itemAt(position):
@@ -188,28 +205,58 @@ class SQLiteVisualizer(QMainWindow):
         self.show_table_viewer_widgets()
         self.viewing_mode = True
 
-    def add_row(self):
-        self.table_view.insertRow(self.table_view.rowCount())
+    def create_new_row(self):
+        table_name = self.get_selected_table_name()
+        if table_name:
+            try:
+                self.cursor.execute(f"INSERT INTO {table_name} DEFAULT VALUES;")
+                self.connection.commit()
+                self.load_table_data(self.table_selector.currentItem())  # Reload data to update the view
+            except Exception as e:
+                QMessageBox.critical(self, "Error Creating New Row", str(e))
 
     def delete_row(self):
-        current_row = self.table_view.currentRow()
-        if current_row >= 0:
-            self.table_view.removeRow(current_row)
+        table_name = self.get_selected_table_name()
+        if table_name:
+            current_row = self.table_view.currentRow()
+            if current_row >= 0:
+                rowid = current_row + 1
+                try:
+                    self.cursor.execute(f"DELETE FROM {table_name} WHERE rowid=?", (rowid,))
+                    self.connection.commit()
+                    self.table_view.removeRow(current_row)
+                except Exception as e:
+                    QMessageBox.critical(self, "Error Deleting Row", str(e))
 
-    def change_column_name(self):
-        current_column = self.table_view.currentColumn()
-        if current_column >= 0:
-            new_name, ok = QInputDialog.getText(self, "Change Column Name", "New Column Name:")
-            if ok and new_name:
-                self.table_view.horizontalHeaderItem(current_column).setText(new_name)
+    def save_changes(self):
+        table_name = self.get_selected_table_name()
+        if table_name:
+            try:
+                self.connection.commit()
+                QMessageBox.information(self, "Changes Saved", "Changes have been saved to the database.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error Saving Changes", str(e))
 
-    def change_column_type(self):
-        current_column = self.table_view.currentColumn()
-        if current_column >= 0:
-            new_type, ok = QInputDialog.getText(self, "Change Column Type", "New Column Type:")
-            if ok and new_type:
-                self.table_view.horizontalHeaderItem(current_column).setText(new_type)
+    def get_selected_table_name(self):
+        current_item = self.table_selector.currentItem()
+        if current_item:
+            return current_item.text()
+        return None
+    
+    def show_row_context_menu(self, position):
+        if not self.viewing_mode:
+            return
 
+        item = self.table_view.itemAt(position)
+        if item is not None:
+            menu = QMenu(self)
+            delete_action = menu.addAction("Delete Row")
+            action = menu.exec_(self.table_view.mapToGlobal(position))
+            if action == delete_action:
+                self.delete_row()
+        else:
+            # Right-clicked on empty space, create a new row
+            self.create_new_row()
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = SQLiteVisualizer()
